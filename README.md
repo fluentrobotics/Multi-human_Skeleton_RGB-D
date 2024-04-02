@@ -28,24 +28,21 @@ Details in [pyproject.toml](/pyproject.toml)
 [Poetry](https://python-poetry.org/) is recommended to initialize this repository, where [pyproject.toml](/pyproject.toml) and [poetry.lock](/poetry.lock) are provided.
 
 ## Get started
-1. Set global configuration [config.py](/feature_extractor/config.py)
+1. **[Optional]** Set global configuration [config.py](/feature_extractor/config.py)
 You can modify YOLO-POSE model `POSE_MODEL`, filters `USE_KALMAN` `MINIMAL_FILTER` `OUTLIER_FILTER`, output filename `TASK_NAME`, save mode `SAVE_YOLO_IMG`.
 
-2. Run `feature_extractor/skeleton_extractor_node.py` with activated ROS TOPICS. NOTE: make sure the image types in configuaration match your ROS TOPICS(Imgae vs Compressed Image)
+2. 2 ways to run the code: 
+ * (1) ROS2 Node: Clone this repository in the src of a ROS2 workspace like `~/ros2_ws/src`, then `colcon build` in the workspace like `~/ros2_ws`. `CMakelists.txt` will auto install a poetry virtual environment for this project. Then `ros2 launch skeleton_extractor skeleton_extractor.launch` to launch the node.
 
-3. The results will be saved in `data/piclke` as `.pkl` with `TASK_NAME`.
+ * (2) Directly Run: After cloning, Use `poetry install` to install the virtual env. Run `feature_extractor/skeleton_extractor_node.py` with activated ROS TOPICS. NOTE: make sure the image types in configuaration match your ROS TOPICS(Imgae vs Compressed Image)
 
-4. If you want to generate a demo, run `plot/plot_pickle.py` and you will get Matplotlib figures generated in `data/figure`. 
-
-5. Then run `plot/creat_video_from_img.py` and get video demo in `data/video`. Before generate the video, you can select desired frame interval in `config`. 
-NOTE: The opencv and matplotlib might conflict because of PyQt5 and cause dump conflicts, try to avoid `import` them in the same PID.
-
+3. Start RViz and visualize the human skletal keypoints.
 
 ## License
 ultralytics YOLO v8 requires all the following repository with [**GNU AGPLv3**](/LICENSE).
 
 
 ## What's Next
-* ROS2 dev, Real-time deployment on robot and calibration with multi-view pseudo ground true.
+* calibration with multi-view pseudo ground true.
 * Descriptor and Feature
 * Action prediction based motion planning.

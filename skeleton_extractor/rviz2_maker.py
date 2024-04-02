@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image, CompressedImage, CameraInfo
 from cv_bridge import CvBridge
 
 from skeleton_extractor.config import *
-from skeleton_extractor.utils import *
+from skeleton_extractor.utils import logger
 
 
 def add_human_skeletal_keypoint_Marker(human_id: ID_TYPE, 

@@ -23,6 +23,7 @@ from std_msgs.msg import Int32MultiArray, Float32MultiArray, Header, ColorRGBA, 
 from geometry_msgs.msg import PoseArray, Pose, Quaternion, Point, PointStamped
 from visualization_msgs.msg import Marker, MarkerArray
 from sensor_msgs.msg import Image, CompressedImage, CameraInfo
+from skeleton_interfaces.msg import MultiHumanSkeleton, HumanSkeleton
 from cv_bridge import CvBridge
 
 import torch
@@ -33,6 +34,7 @@ from skeleton_extractor.HumanKeypointsFilter import HumanKeypointsFilter
 from skeleton_extractor.Outlier_filter import find_inliers
 from skeleton_extractor.rviz2_maker import *
 from skeleton_extractor.utils import *
+from skeleton_extractor import skeleton2msg
 
 # Global Config
 from skeleton_extractor.config import *
@@ -137,19 +139,10 @@ class skeletal_extractor_node(Node):
         self.pub_timer = self.create_timer(timer_period, self._timer_callback)
 
         # Publisher ###########################################################   
-        # # TODO: now we only publish RViz firstly
-        # self._skeleton_human_id_pub = self.create_publisher(
-        #     Int32MultiArray, SKELETON_HUMAN_ID_TOPIC, 1
-        # )
-        # self._skeleton_mask_mat_pub = self.create_publisher(
-        #     Int32MultiArray, SKELETON_MASK_MAT_TOPIC, 1
-        # )
-        # self._raw_skeleton_pub = self.create_publisher(
-        #     Float32MultiArray, RAW_SKELETON_TOPIC, 1
-        # )
-        # self._filtered_skeleton_pub = self.create_publisher(
-        #     Float32MultiArray, FILTERED_SKELETON_TOPIC, 1
-        # )
+        # # TODO: We are currently using customized message
+        self._multi_human_skeleton_pub = self.create_publisher(
+            MultiHumanSkeleton, MULTI_HUMAN_SKELETON_TOPIC, 1
+        )
 
         # RViz Skeletons ####################################################
         if self.rviz:
@@ -351,6 +344,7 @@ class skeletal_extractor_node(Node):
         keypoints_3d = np.zeros((num_human, num_keypoints, 3))  # [H,K,3]
         keypoints_no_Kalman = np.zeros((num_human, num_keypoints, 3)) # [H,K,3]
         keypoints_mask = np.zeros((num_human, num_keypoints),dtype=bool)   # [H,K]
+        keypoints_center = np.zeros((num_human, 3))  # [H,3]
 
         for idx, id in enumerate(id_human, start=0):
             # query or set if non-existing
@@ -383,8 +377,9 @@ class skeletal_extractor_node(Node):
             else:
                 new_mask = self.human_dict[id].valid_keypoints
             
-            keypoints_3d[idx,...] = keypoints_cam     # [K,3]
-            keypoints_mask[idx,...] = new_mask
+            keypoints_3d[idx,...] = keypoints_cam       # keypoints_cam: [K,3]
+            keypoints_mask[idx,...] = new_mask          # new_mask: [K,]
+            keypoints_center[idx,...] = geo_center      # geo_center: [3,]
             # id_human[idx] = id
             # keypoints_xx[idx] = corelated data
         
@@ -412,23 +407,18 @@ class skeletal_extractor_node(Node):
                 # all_marker_list.extend([add_keypoint_marker])
                 all_marker_list.extend([add_keypoint_marker, add_geo_center_marker, add_line_marker])
 
-        # if self.save:
-        #     self.filtered_keypoints = keypoints_3d
-        #     self.keypoints_mask = keypoints_mask
-        #     self.keypoints_no_Kalman = keypoints_no_Kalman
-
         # Publish keypoints and markers
+        ## Keypoints
+        MultiHumanSkeleton_msg = skeleton2msg.keypoints_to_skeleton_interfaces(
+            human_id=id_human,
+            keypoints_center=keypoints_center,
+            keypoints_3d=keypoints_3d,
+            keypoints_mask=keypoints_mask,
+        )
+        MultiHumanSkeleton_msg.header.frame_id = self.frame_id
+        self._multi_human_skeleton_pub.publish(MultiHumanSkeleton_msg)
 
-        # id_msg = Int32MultiArray()
-        # id_msg.data = id_human.tolist()     # much faster than for loop
-        
-        # NOTE: numpy_msg
-        # self._skeleton_human_id_pub.publish(data=id_human)           # [H,]
-        # self._skeleton_mask_mat_pub.publish(data=keypoints_mask)     # [H,K]
-        # self._raw_skeleton_pub.publish(data=keypoints_no_Kalman)           # [H,K,D]
-        # self._filtered_skeleton_pub.publish(data=keypoints_3d)       # [H,K,D]
-
-        # RVIZ ####################################################
+        ## RVIZ Markers ####################################################
         if self.rviz:
             all_marker_array = MarkerArray()
             all_marker_array.markers = all_marker_list

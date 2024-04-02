@@ -12,7 +12,8 @@ def find_inliers(data_KD: np.ndarray, mask_K: np.ndarray) -> tuple[np.ndarray, n
     """
     @ data_KD: [K,D] float
     @ mask_K: [K,] bool
-    
+    @ new_mask: [K,] bool
+    @ geo_center: [D,] float
     return new_mask, geometric center
     """
     K, D = data_KD.shape

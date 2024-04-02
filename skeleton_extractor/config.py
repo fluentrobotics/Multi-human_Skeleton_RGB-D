@@ -11,10 +11,9 @@ DEPTH_ALIGNED_TOPIC = '/camera/aligned_depth_to_color/image_raw'
 DEPTH_ALIGNED_COMPRESSED_TOPIC = '/camera/aligned_depth_to_color/image_raw/compressed'
 CAMERA_INFO_TOPIC = '/camera/color/camera_info'
 # PUB topic
-SKELETON_HUMAN_ID_TOPIC = 'skeleton/numpy_msg/human_id'
-SKELETON_MASK_MAT_TOPIC = 'skeleton/numpy_msg/mask'
-RAW_SKELETON_TOPIC = '/skeleton/numpy_msg/raw_keypoints_3d'
-FILTERED_SKELETON_TOPIC = '/skeleton/numpy_msg/filtered_keypoints_3d'
+## Skeleton Data in skeleton_interfaces
+MULTI_HUMAN_SKELETON_TOPIC = 'skeleton/data/multi_human'
+## RViz Markers
 RVIZ_IMG2D_SKELETON_TOPIC = '/skeleton/vis/keypoints_2d_img'
 RVIZ_MARKER3D_SKELETON_TOPIC = '/skeleton/vis/keypoints_3d_makers'
 PUB_FREQ:float = 5
