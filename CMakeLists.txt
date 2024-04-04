@@ -7,6 +7,7 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -29,6 +30,8 @@ install(
     skeleton_extractor
     DESTINATION lib/${PROJECT_NAME}
 )
+
+ament_python_install_package(${PROJECT_NAME})
 
 file(
     # "file" commands are executed at build time. The install directory won't
