@@ -105,7 +105,7 @@ class skeletal_extractor_node(Node):
 
 
         # logger debugger
-        self.no_human_debugger = False
+        self.no_human_detection = False
         self.no_message_debugger = False
 
 
@@ -294,15 +294,13 @@ class skeletal_extractor_node(Node):
         
         # if no detections, gets [1,0,51], yolo_res.boxes.id=None
         if id_human is None or num_keypoints == 0 or num_keypoints == 0:
-            if self.no_human_debugger is False:
+            if self.no_human_detection is False:
                 logger.debug('no human or no keypoints, reset rviz')
-                self.no_human_debugger = True
-
+                self.no_human_detection = True
                 self._reset_rviz(ns=self.ns)
 
-            return
         else:
-            self.no_human_debugger = False
+            self.no_human_detection = False
             conf_keypoints = yolo_res.keypoints.conf.cpu().numpy()        # Tensor [H,K]
             keypoints_2d = yolo_res.keypoints.data.cpu().numpy()          # Tensor [H,K,D(x,y,conf)] [H, 17, 3]
             keypoints_xy = yolo_res.keypoints.xy.cpu().numpy()
@@ -340,7 +338,13 @@ class skeletal_extractor_node(Node):
                 delete_list = delete_human_marker(key, offset_list=[KEYPOINT_ID_OFFSET, LINE_ID_OFFSET], frame_id=self.frame_id)
                 all_marker_list.extend(delete_list)
 
-
+        # When no detection, after deleting markers, publish an empty message
+        if self.no_human_detection:
+            MultiHumanSkeleton_msg = skeleton2msg.keypoints_to_skeleton_interfaces(empty_input=True)
+            MultiHumanSkeleton_msg.header.frame_id = self.frame_id
+            self._multi_human_skeleton_pub.publish(MultiHumanSkeleton_msg)
+            return
+        
         keypoints_3d = np.zeros((num_human, num_keypoints, 3))  # [H,K,3]
         keypoints_no_Kalman = np.zeros((num_human, num_keypoints, 3)) # [H,K,3]
         keypoints_mask = np.zeros((num_human, num_keypoints),dtype=bool)   # [H,K]

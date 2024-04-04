@@ -12,10 +12,11 @@ from skeleton_interfaces.msg import MultiHumanSkeleton, HumanSkeleton
 from cv_bridge import CvBridge
 
 def keypoints_to_skeleton_interfaces(
-        human_id: np.ndarray,
-        keypoints_center: np.ndarray,
-        keypoints_3d: np.ndarray,
-        keypoints_mask: np.ndarray,
+        human_id: np.ndarray = None,
+        keypoints_center: np.ndarray = None,
+        keypoints_3d: np.ndarray = None,
+        keypoints_mask: np.ndarray = None,
+        empty_input: bool = False,
         ) -> MultiHumanSkeleton:
     """
     @ human_id: [H,]
@@ -28,6 +29,9 @@ def keypoints_to_skeleton_interfaces(
     
     MultiHumanSkeleton_msg = MultiHumanSkeleton()
     MultiHumanSkeleton_msg.multi_human_skeleton = list()
+
+    if empty_input:
+        return MultiHumanSkeleton_msg
 
     for idx, id in enumerate(human_id, start=0):
         human_center_array = keypoints_center[idx,...]      # [3,]
@@ -55,6 +59,9 @@ def keypoints_to_skeleton_interfaces(
 # def dict_to_skeleton_interfaces(human_dict: dict):
 
 def np_vector_to_point32(vector: np.ndarray) -> Point32:
+    """
+    numpy vector (3,) to Points32
+    """
     
     assert vector.shape == (3,), "the shape of vector must be (3,)"
     point = Point32()
@@ -67,6 +74,9 @@ def np_vector_to_point32(vector: np.ndarray) -> Point32:
 
 
 def point32_to_np_vector(point: Point32) -> np.ndarray:
+    """
+    Point32 to numpy vector (3,)
+    """
     
     point_list = [point.x, point.y, point.z]
     vector = np.array(point_list, dtype=float)

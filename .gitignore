@@ -1,7 +1,7 @@
 # exclude
 */__pycache__
 **/.venv
-**/poetry.lock
+# **/poetry.lock
 **/*.pt
 **/*.bag
 **/bagfiles
