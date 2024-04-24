@@ -7,21 +7,20 @@ import os
 import numpy as np
 
 def get_project_dir_path() -> Path:
+    # logger.debug(f"debug:{__file__}\n{Path(__file__).parents}")
     for parent in Path(__file__).parents:
-        if (parent / "pyproject.toml").exists():
-            return parent
+        if (parent / "src/Multi-human_Skeleton_RGBD").exists():
+            # parent is workspace directory
+            return parent / "src/Multi-human_Skeleton_RGBD"
+        
+    assert Exception("Cannot find the source code path")
 
 
 def get_pose_model_dir() -> Path:
     # Recursively ascend the parent directories of this file's path looking for
     # the .venv folder.
-    for parent in Path(__file__).parents:
-        if (parent / "pyproject.toml").exists():
-            return parent / "models"
-
-    # If the .venv folder could not be found, just use the current working
-    # directory.
-    raise Exception("Do not find pyproject.toml file. Please Init the Project first")
+    proj_path = get_project_dir_path()
+    return proj_path / "models"
 
 
 logger.remove(0)

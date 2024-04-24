@@ -19,7 +19,7 @@ RVIZ_MARKER3D_SKELETON_TOPIC = '/skeleton/vis/keypoints_3d_makers'
 PUB_FREQ:float = 5
 
 CAMERA_FRAME = "camera_color_optical_frame"
-
+STRETCH_BASE_FRAME = "base_link"
 # DATA TYPE
 ID_TYPE = np.int32
 
@@ -28,7 +28,7 @@ SKELETON_NODE = "skeleton"
 COMPRESSED_TOPICS = {'rgb': True, 'depth': False}
 MAX_MISSING = 15
 SKELETAL_LINE_PAIRS_LIST = [(4,2),(2,0),(0,1),(1,3),
-                            (10,8),(8,6),(6,5),(5,7),(7,8),
+                            (10,8),(8,6),(6,5),(5,7),(7,9),
                             (6,12),(12,14),(14,16),(5,11),(11,13),(13,15),(12,11)]
 SKELETAL2BODY = np.array(["Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear",
                           "Left Shoulder", " Right SHoulder", "Left Elbow", "Right Elbow",
@@ -51,8 +51,8 @@ GEO_CENTER_ID_OFFSET = 2
 
 
 # PATH
-PROJECT_PATH = get_project_dir_path()
-DATA_DIR_PATH = PROJECT_PATH / "data"
+PROJECT_SRC_PATH = get_project_dir_path()
+DATA_DIR_PATH = PROJECT_SRC_PATH / "data"
 ###################################################################################
 
 # TODO: Cutomized Parameters

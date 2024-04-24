@@ -14,11 +14,18 @@ from pathlib import Path
 
 # import rosbag
 import rclpy
+import rclpy.clock
 from rclpy.node import Node
 # import message_filters
 # from rospy.numpy_msg import numpy_msg
 
+import tf2_ros
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
+from tf2_geometry_msgs import do_transform_point
+
 # Message type
+import rclpy.time_source
 from std_msgs.msg import Int32MultiArray, Float32MultiArray, Header, ColorRGBA, MultiArrayDimension
 from geometry_msgs.msg import PoseArray, Pose, Quaternion, Point, PointStamped
 from visualization_msgs.msg import Marker, MarkerArray
@@ -35,6 +42,7 @@ from skeleton_extractor.Outlier_filter import find_inliers
 from skeleton_extractor.rviz2_maker import *
 from skeleton_extractor.utils import *
 from skeleton_extractor import skeleton2msg
+from skeleton_extractor.transform import transformstamped_to_tr
 
 # Global Config
 from skeleton_extractor.config import *
@@ -56,7 +64,9 @@ class skeletal_extractor_node(Node):
                  outlier_filter: bool = True,
                  rviz: bool = False,
                  save: bool = True,
-                 namespace: str = 'skeleton'
+                 namespace: str = 'skeleton',
+                 frame_id: str = STRETCH_BASE_FRAME,
+                 camera_frame: str = None,
     ):
         """
         @rotate: default =  cv2.ROTATE_90_CLOCKWISE
@@ -78,7 +88,8 @@ class skeletal_extractor_node(Node):
         self.use_outlier_filter = outlier_filter
         self.save = save
         self.ns = namespace
-        self.frame_id: str = None
+        self.frame_id: str = frame_id
+        self.camera_frame: str = camera_frame
 
         logger.info(f"\nInitialization\n \
                     NodeName={SKELETON_NODE}\n \
@@ -94,12 +105,14 @@ class skeletal_extractor_node(Node):
                     Minimal_filter={minimal_filter}\n \
                     Outlier_filter={outlier_filter}\n \
                     Namespace={self.ns}\n \
+                    Source_path={PROJECT_SRC_PATH}\n \
+                    Frame_id={self.frame_id}\n \
                     ")
-        
+
         # yolov8n-pose, yolov8s-pose, yolov8m-pose, yolov8l-pose, yolov8x-pose, yolov8x-pose-p6
         self._POSE_model = YOLO(get_pose_model_dir() / pose_model)
         self._POSE_KEYPOINTS = 17
-        self.human_dict = dict()
+        self.human_dict: dict[any, HumanKeypointsFilter] = dict()
         self.keypoints_HKD: np.ndarray
         self.step = 0
 
@@ -131,7 +144,10 @@ class skeletal_extractor_node(Node):
             Image, DEPTH_ALIGNED_TOPIC, self._depth_callback, 1
         )
             self._depth_msg: Image = None
-            
+        
+        # tf2 ################################################################
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self)
 
 
         # Timer for Publisher ################################################
@@ -229,7 +245,7 @@ class skeletal_extractor_node(Node):
         #     self.keypoints_mask = None
         #     self.keypoints_no_Kalman= None
         #     self.YOLO_plot = None
-        
+        t_before_infer = self.get_clock().now().to_msg()
         
         # no rgb-d message ##########################################
         if self._rgb_msg is None or self._depth_msg is None:
@@ -244,7 +260,9 @@ class skeletal_extractor_node(Node):
         #############################################################
 
         rgb_msg_header = self._rgb_msg.header
-        self.frame_id = rgb_msg_header.frame_id
+        timestamp_img = rgb_msg_header.stamp
+        if self.camera_frame is None:
+            self.camera_frame = rgb_msg_header.frame_id
 
         # compressed img
         if self.compressed['rgb']:
@@ -340,8 +358,11 @@ class skeletal_extractor_node(Node):
 
         # When no detection, after deleting markers, publish an empty message
         if self.no_human_detection:
-            MultiHumanSkeleton_msg = skeleton2msg.keypoints_to_skeleton_interfaces(empty_input=True)
-            MultiHumanSkeleton_msg.header.frame_id = self.frame_id
+            MultiHumanSkeleton_msg = skeleton2msg.keypoints_to_skeleton_interfaces(
+                empty_input=True, 
+                frame_id=self.frame_id,
+                timestamp=timestamp_img,
+                )
             self._multi_human_skeleton_pub.publish(MultiHumanSkeleton_msg)
             return
         
@@ -380,7 +401,8 @@ class skeletal_extractor_node(Node):
                 # logger.debug(f"Geographical Center: {geo_center}")
             else:
                 new_mask = self.human_dict[id].valid_keypoints
-            
+            if np.all(new_mask):
+                logger.success(f"All Keypoints detected")
             keypoints_3d[idx,...] = keypoints_cam       # keypoints_cam: [K,3]
             keypoints_mask[idx,...] = new_mask          # new_mask: [K,]
             keypoints_center[idx,...] = geo_center      # geo_center: [3,]
@@ -393,33 +415,52 @@ class skeletal_extractor_node(Node):
                                                                          keypoint_KD= keypoints_cam, 
                                                                          keypoint_mask_K=new_mask,
                                                                          offset= KEYPOINT_ID_OFFSET,
-                                                                         frame_id=self.frame_id,
+                                                                         frame_id=self.camera_frame,
                                                                          )
                 
                 add_geo_center_marker = add_human_geo_center_Marker(human_id=id,
                                                                     geo_center=geo_center,
-                                                                    frame_id=self.frame_id,
+                                                                    frame_id=self.camera_frame,
                                                                     )
 
                 add_line_marker = add_human_skeletal_line_Marker(human_id= id,
                                                                  keypoint_KD= keypoints_cam,
                                                                  keypoint_mask_K=new_mask,
                                                                  offset= LINE_ID_OFFSET,
-                                                                 frame_id = self.frame_id,
+                                                                 frame_id = self.camera_frame,
                                                                  )
                 
                 # all_marker_list.extend([add_keypoint_marker])
                 all_marker_list.extend([add_keypoint_marker, add_geo_center_marker, add_line_marker])
 
         # Publish keypoints and markers
+        ## transformation
+        t, r = self.tf2_array_transformation(source_frame=self.camera_frame, target_frame=STRETCH_BASE_FRAME)
+        try:
+
+            keypoints_3d_with_frame = np.tensordot(keypoints_3d, r, axes=([2],[1])) + t     # [3,3], [H,K,3], [3,]
+            keypoints_center_with_frame = np.tensordot(keypoints_center, r, axes=([1],[1])) + t     # [3,3], [H,3], [3,] 
+
+        except:
+            # einsum ##########
+            logger.warning(f"tensordot error")
+            # [3,3], [H,(K,)3], [3,1]      einsum is slower
+            keypoints_3d_with_frame = np.einsum("ji,...i->...j", r, keypoints_3d) + t
+            keypoints_center_with_frame = np.einsum("ji,...i->...j", r, keypoints_center) + t
+        
+        # logger.debug(f"\nkeypoints_3d{keypoints_3d.shape}\nkeypoints_center{keypoints_center.shape}")
+        
         ## Keypoints
         MultiHumanSkeleton_msg = skeleton2msg.keypoints_to_skeleton_interfaces(
             human_id=id_human,
-            keypoints_center=keypoints_center,
-            keypoints_3d=keypoints_3d,
+            keypoints_center=keypoints_center_with_frame,
+            keypoints_3d=keypoints_3d_with_frame,
             keypoints_mask=keypoints_mask,
+            frame_id=self.frame_id,
+            timestamp=timestamp_img,
         )
-        MultiHumanSkeleton_msg.header.frame_id = self.frame_id
+        # MultiHumanSkeleton_msg.header.frame_id = self.frame_id
+        # MultiHumanSkeleton_msg.header.stamp = t_before_infer
         self._multi_human_skeleton_pub.publish(MultiHumanSkeleton_msg)
 
         ## RVIZ Markers ####################################################
@@ -430,6 +471,21 @@ class skeletal_extractor_node(Node):
             # logger.success("Publish MakerArray")
             
         self._reset_sub_msg()   # if no new sub msg, pause this fun
+
+
+    def tf2_array_transformation(self, source_frame: str, target_frame: str):
+        try:
+            # P^b = T_a^b @ P^a, T_a^b means b wrt a transformation
+            transformation = self._tf_buffer.lookup_transform(target_frame=target_frame, 
+                                                              source_frame=source_frame,
+                                                              time=rclpy.time.Time(seconds=0, nanoseconds=0),
+                                                              timeout=rclpy.duration.Duration(seconds=0, nanoseconds=int(0.5e9)),
+                                                              )
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            logger.exception(f'Unable to find the transformation from {source_frame} to {target_frame}')
+
+        t,r = transformstamped_to_tr(transformation)
+        return t,r
 
 
 
@@ -451,7 +507,5 @@ def main(args=None) -> None:
 
 
 if __name__ == '__main__':
-    # if SAVE_DATA:
-    #     if not os.path.exists(DATA_DIR_PATH / "pickle"):
-    #         os.mkdir(DATA_DIR_PATH / "pickle")
+
     main()

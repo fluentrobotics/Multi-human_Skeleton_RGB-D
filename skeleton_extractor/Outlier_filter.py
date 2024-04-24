@@ -27,6 +27,10 @@ def find_inliers(data_KD: np.ndarray, mask_K: np.ndarray) -> tuple[np.ndarray, n
         geo_mask[:5] = False
         geo_mask[7:11] = False
         geo_mask[13:] = False
+
+        if not geo_mask.any():
+            return mask_K, np.mean(data_KD[mask_K, ...], axis=0)
+
         geo_center = np.mean(data_KD[geo_mask, ...], axis=0)
         assert geo_center.shape == (D,) , "Wrong Dimension"
 

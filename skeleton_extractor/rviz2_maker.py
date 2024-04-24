@@ -69,7 +69,9 @@ def add_human_geo_center_Marker(human_id: ID_TYPE,
                                 frame_id: str,
                                 ns = "skeleton",
                                 offset = GEO_CENTER_ID_OFFSET) -> Marker:
-    
+    if geo_center is None:
+        return None
+
     marker = Marker()
     marker.header.frame_id = frame_id
     marker.ns = ns
